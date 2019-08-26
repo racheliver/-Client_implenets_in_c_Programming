@@ -3,7 +3,8 @@
 //#====   Created by rachelive   =====
 //#===================================
 
-
+// Code-review:: General - distinguish between destination stream of prints, i.e. for errors use fprintf(stderr, "Error")
+// Code-review:: General - use 'const' in functions arguments if you don't change the data, i.e. copy(const char* src, char* dst);
 //#======================
 //#====   INCLUDES   ====
 //#======================
@@ -166,20 +167,22 @@ int checkWhiteSpace(char* string){
 int checkForNum(char* string)
 {
 
+    // Code-review:: wrong comparison here. string=="" and string==" "; 
+    // string is pointer, so these 2 are always false. Probably you need something like strcmp or string[0]==...
     if(string==NULL || string=="" || string ==" ")
         return EXIT_ERROR;
 
     for (int i = 0; i < strlen(string); i++)
     {
-        if (string[i] < 48 || string[i] > 57)
+        if (string[i] < 48 || string[i] > 57)	// Code-review:: use '0' instead of 48 and '9' instead of 57. Anyway better to use existing func isdigit(string[i])
             return -1;
     }
 
     int num = atoi( string );
 
-    if (num == 0 && string[0] != '0')
+    if (num == 0 && string[0] != '0')	//Code-review:: this one is redundant, you checked already string that it has only numbers
         return EXIT_ERROR;
-    if(num<0 || num>65535)
+    if(num<0 || num>65535)		//Code-review:: use macros instead of magic numbers
         return EXIT_ERROR;
     else
         return num;
@@ -261,11 +264,11 @@ char *str_replace(char *orig, char *rep, char *with) {
 int connection(char *hostName, char* port, char* requset) {
 
     int sockfd, portno, n;
-    struct sockaddr_in serv_addr;
+    struct sockaddr_in serv_addr;	// Code-review:: initialize the struct with 0's
     struct hostent *server;
-    char* buffer=(char*)malloc(sizeof(char)*1024);
+    char* buffer=(char*)malloc(sizeof(char)*1024);	//Code-review:: if you know exactly the max size of buffer, use stack variable, i.e. char buffer[1024];
     for (int i = 0; i <1024 ; ++i) {
-        buffer[i]='\0';
+        buffer[i]='\0';		// Code-review:: use memset(buffer, 0, 1024);
     }
 
 //========================== connection to server ===========================/
@@ -274,30 +277,30 @@ int connection(char *hostName, char* port, char* requset) {
     if (sockfd < 0)
         if (sockfd == EXIT_ERROR)
         {
-            perror("socket");
+            perror("socket");	//Code-review:: no free(buffer) called
                 return EXIT_ERROR;
         }
     if(!port)
-    portno = atoi("80");
+    portno = atoi("80");	//Code-review:: just use int (80) instead of atoi("80")
     else
         portno = atoi(port);
-    server = gethostbyname(hostName);
+    server = gethostbyname(hostName); //Code-review:: gethostbyname is depricated. 
     if(server == NULL)
     {
 
         close(sockfd);
-        herror("gethostbyname ERROR");
+        herror("gethostbyname ERROR"); //Code-review:: no free(buffer) called
         return EXIT_ERROR;
     }
 
     serv_addr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, (char *)  &serv_addr.sin_addr.s_addr, server->h_length);
+    bcopy((char *)server->h_addr, (char *)  &serv_addr.sin_addr.s_addr, server->h_length);	//Code-review:: bcopy is depricated. Use memcpy instead
     serv_addr.sin_port = htons(portno);
 
     if (connect(sockfd,(const struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
     {
         close(sockfd);
-        perror("connect ERROR");
+        perror("connect ERROR"); //Code-review:: no free(buffer) called
         return EXIT_ERROR;
     }
 
@@ -308,22 +311,34 @@ int sum=0;
 while(1) {
     n = write(sockfd, requset, strlen(requset));
     sum+=n;
+
+    // Code-review: potential bug here if on the first write() only part of the request is written, then you may enter to endless loop
+    // i.e. on first write only 10 bytes were written, so sum = 10
+    // on the second try the whole request is written, so now sum = strlen(request) + 10
+    // so this if will be false, and you will write and write the request again and again increasing sum in the endless loop
+    // probably the check should be if (n == strlen(request))
     if(sum==strlen(requset))
         break;
     if (n < 0) {
-        perror("ERROR writing to socket");
+        perror("ERROR writing to socket"); //Code-review:: no free(buffer) and close(socketfd) called
         return EXIT_ERROR;
     }
 }
 
-int sum2=0;
+int sum2=0;	// Code-review: Give some meaningfull name to the variable
 while (1) {
+    // Code-review:: potential bug here if you unable to read the whole message on the first try
+    // i.e. assume you need 2 read() for reading the full message, both of them will be written to the beginning of buffer,
+    // so the second part will override the first part
+    // Probably you need something like n = read(sockfd, &buffer[sum2], 1024-sum2). 
+    // But if you will do that, then you need to make sure that the message is shorter than 1024 bytes
+	
     n = read(sockfd, buffer, 1023-sum2);
     sum2+=n;
     if(n==0)
         break;
     if (n < 0) {
-        perror("ERROR reading from socket");
+        perror("ERROR reading from socket"); //Code-review:: no free(buffer) and close(socketfd) called
         return EXIT_ERROR;
     }
 
@@ -344,7 +359,7 @@ while (1) {
 //#===========================
 
 void flags(int argc, char **argv) {
-
+	// Code-review:: Very hard to follow and understand what function does. Better to divide and provide meaningful names
     int flagP = -1, flagR = -1, flagURL = -1;
     char* urlString=NULL;
     char* path=NULL;
@@ -379,7 +394,7 @@ void flags(int argc, char **argv) {
         }
 
         else if (temp!=NULL&&strstr(temp, "-r") && strlen(argv[i]) == 2) {
-            arguments=argumentsClean(argv, i, &flagP,argc);
+            arguments=argumentsClean(argv, i, &flagP,argc);	// Code-review:: typo here. You need &flagR ?
             int argumentsCount=checkForNum(argv[i+1]);countFor=i+2+argumentsCount;
 
             if(!arguments)
@@ -418,7 +433,7 @@ void flags(int argc, char **argv) {
                     port=getThepath(urlString,':');//this is the port
                     if((portInt= checkForNum(port))==EXIT_ERROR)
                     {
-                        printUsageError();
+                        printUsageError(); //Code-review:: didn't call freeFunction(...)
                         exit(1);
                     }
                     urlString=getTheHost(urlString,":");//this is the url
@@ -439,8 +454,9 @@ void flags(int argc, char **argv) {
 
 
     }
-   if(flagURL==-1 || flagR>0 || flagP>0 || flagURL>0)
+   if(flagURL==-1 || flagR>0 || flagP>0 || flagURL>0)	// Code-reveiw:: better to init to 0 and if there is an occurence increase to 1.
     {
+	   //Code-review:: didn't call freeFunction(...)
         printUsageError();
         exit(1);
     }
@@ -482,7 +498,7 @@ void flags(int argc, char **argv) {
 //#===========================
 char* textClean(char **argv, int positionP,int* flagP,int argc) {
 
-    char* text= (char*)malloc(sizeof(char)*1000);
+    char* text= (char*)malloc(sizeof(char)*1000);	//Code-review:: use stack variable char text[1000];
     if(!text)
     {
         printf("malloc error");
@@ -490,13 +506,13 @@ char* textClean(char **argv, int positionP,int* flagP,int argc) {
     }
     if(positionP+1>argc || argv[positionP+1]=="" || positionP+1>=argc)
     {
-        printUsageError();
+        printUsageError(); //Code-review::free(text) is missing
         return NULL;
     }
     else
     {
 
-        strcpy(text,argv[positionP+1]);
+        strcpy(text,argv[positionP+1]); //Code-review:: you assume that could be only single char that should be skip (+1). Is it always true?
 
         return text;
     }
@@ -507,8 +523,9 @@ char* textClean(char **argv, int positionP,int* flagP,int argc) {
 //#===========================
 char *argumentsClean(char **argv, int positionR, int *flagR,int argc) {
 
+//Code-review:: Very hard to follow and understand what the function does
 
-    char* arguments; int argumentsCount;int start=positionR+2;
+    char* arguments; int argumentsCount;int start=positionR+2; // Code-review:: better to use stack variable, i.e. char arguments[1000];
     if( positionR+1>=argc || argv[positionR+1]=="" || (argumentsCount=checkForNum(argv[positionR+1]))==EXIT_ERROR)
     {
         printUsageError();
@@ -533,7 +550,7 @@ char *argumentsClean(char **argv, int positionR, int *flagR,int argc) {
             for (i = start; i <end ;i++) {
                 if(checkWhiteSpace(argv[i])==-1)
                 {
-                    printUsageError();
+                    printUsageError();	//Core-review:: free(arguments) is missing
                     return NULL;
                 }
                 if(i<end-1)
@@ -556,11 +573,12 @@ char *argumentsClean(char **argv, int positionR, int *flagR,int argc) {
     return arguments;
 }
 
+//Code-review:: not clear what this function does. To me it looks like you require that the "symbol" should be in every cell of argv* array
 //#===========================
 //#=====   charInArray =======
 //#===========================
 int charInArray(char **argv, int start, int end,char* symbol) {
-    int sizeOfArgu=0;
+    int sizeOfArgu=0;	//Code-review: sizeOfArgu is neither returned nor used, do you really need it?
     for (int i = start; i <end ;i++) {
         if(!(strstr(argv[i],symbol)))
         {
@@ -573,7 +591,7 @@ int charInArray(char **argv, int start, int end,char* symbol) {
 }
 
 
-
+// Code-review:: better to use short names (try to avoid using "the" in the function names)
 //#===========================
 //#=====   getTheHost ========
 //#===========================
@@ -584,7 +602,7 @@ char* getTheHost(char* argv,char* symbol){
 }
 
 
-
+// Code-review:: better to use short names (try to avoid using "the" in the function names)
 //#===========================
 //#=====   getThepath ========
 //#===========================
@@ -596,11 +614,13 @@ char *getThepath(char *argv,char symbol) {
         return NULL;
     }
     char* str=strchr(argv,symbol);
-    if(symbol==':')
+    // Code-review:: probably bug here (off-by-one). if attacker can pass the symbol as the firs char, then the whole string could be copied without the last null-terminator
+    if(symbol==':')	// Code-review: After ':' there is port and then after '/' is path part. Probably better to divide this function 2 get_path and get_port
         strncpy(copy,str+1,strlen(argv));
     else
     strncpy(copy,str,strlen(argv));
 
+	
     return copy;
 }
 
@@ -629,6 +649,12 @@ void freeFunction(char *urlString, char *path, char *arguments,char* text,char* 
 char* getRequest(char *url, char *path, char *port,char* arguments) {
     char* getPart="GET ";char* httpPart=" HTTP/1.0";char* preffixHost ="\r\nHost: ";char* slass=" /";char* rn="\r\n\r\n";
 
+	// Code-review:: not clear size_of_request calculation.
+	// What is 5 for?
+	// preffixHost+strlen(url) -> is very dangerous: preffixHost is pointer to memory size 9 ("\r\nHost..."), 
+	// preffixHost+strlen(url) could point outside of that array to some garbage. 
+	// so later strlen(preffixHost+strlen(url)+5) won't do what you intended. 
+	// Looks like you put the clos bracket in the wrong place
   int size_of_request = strlen(getPart)+strlen(httpPart)+strlen(preffixHost+strlen(url)+5);
   if(path)
       size_of_request+=strlen(path);
@@ -639,7 +665,10 @@ char* getRequest(char *url, char *path, char *port,char* arguments) {
 
     if(arguments!=NULL)
         size_of_request+=strlen(arguments);
-
+	// Code-review:
+	// 1. Better to use stack variable for request, i.e. char request[1000];
+	// 2. Need to check that size_of_request is smaller than the buffer size, 
+	//    othervise there is a security vulnerability here, that attacker can exploit
 char* request=(char*)malloc(sizeof(char)*1000);
     if(!request)
     {
@@ -648,10 +677,14 @@ char* request=(char*)malloc(sizeof(char)*1000);
     }
 request[0]='\0';
 strcat(request,getPart);
+
+// Code-review:: if(!path) and if(path!=NULL) are opposite, so better to use 'else' instead of 'if (path!=NULL)'	
 if(!path)
     strcat(request,slass);
-    if(path!=NULL)
+if(path!=NULL)
     strcat(request,path);
+	
+	
     if(arguments!=NULL) {
         strcat(request, "?");
         strcat(request, arguments);
@@ -676,12 +709,16 @@ if(!path)
 //#===========================
 char* postRequest(char *host, char *path, char *port, char *arguments, char *text){
     char *postPart = "POST ";char *httpPart = " HTTP/1.0";char * preffixHost = "\r\nHost: ";char *slass = "/";char *Content_length = "\r\nContent-length:";
-    char length[100];
+    char length[100];	//Code-review:: Too big buffer for storing length. Max int is 10 chars + 4 bytes for \r\n + 1 for \0 are enough
 
+	// Code-review:: length buffer is unitialized and contain garbage. I'm not sure if sprintf add \0, so better to init it to 0.
     sprintf(length,"%d\r\n\r\n" ,(int)strlen(text));
 
 	int size_of_request = strlen(postPart)+ strlen(httpPart) + strlen(preffixHost) + strlen(host) + strlen(slass) + strlen(Content_length) +    strlen(length) + strlen(text)+5;
 	if(path != NULL){size_of_request+=strlen(path);}
+	// Code-review:
+	// 1. Better to use stack variable for request, i.e. char request[1000];
+	// 2. Need to check that size_of_request is smaller than the buffer size, othervise there is a security vulnerability here
 	char * request = (char*)malloc((1000)*sizeof(char));
     if(!request)
     {
@@ -690,6 +727,8 @@ char* postRequest(char *host, char *path, char *port, char *arguments, char *tex
     }
 	request[0]='\0';
 	strcat(request, postPart);
+	
+	// Code-review:: if(!path) and if(path!=NULL) are opposite, so better to use 'else' instead of 'if (path!=NULL)'
 	if(!path)
 	strcat(request, slass);
 	if(path != NULL)
