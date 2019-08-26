@@ -1,7 +1,7 @@
 
             /************************************************
-			*    user name:rachelive                        *
-            *    Name & ID:Racheli  Verechzon , 305710071   *
+            *    user name:rachelive                        *
+            *    Name :Racheli  Verechzon                   *
             *  ======================================       *
             *   Ex2 - Client implenets in c Programming     *
             *               02/01/2019                      *
